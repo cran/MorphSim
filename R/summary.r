@@ -11,11 +11,18 @@
 #'   - \code{Statistics}: data.frame with CI and RI
 #'   - \code{Convergent_Traits}: data.frame listing convergent traits
 #'   - \code{Tree}: data.frame summarizing extant/extinct tips and sampled ancestors
+#' @importFrom phangorn phyDat CI RI
+#' @importFrom ape node.depth.edgelength
+#'
 #' @export
+#'
 #' @examples
 #' data(morpho_data)
+#'
 #' summary <- stats.morpho(data = morpho_data)
 #'
+#' @seealso \code{\link{get.convergent}} for detailed per-trait
+#' convergence information
 stats.morpho <- function(data){
 
   if (is.null(data) || !inherits(data, "morpho")) {
@@ -72,10 +79,17 @@ stats.morpho <- function(data){
 #' Determines the number of convergently evolved traits
 #'
 #' @description
-#' Identifies which traits have evolved independently multiple times (convergent evolution) in a morpho object.
+#' Identifies which traits have evolved independently multiple times
+#' (convergent evolution) in a morpho object.
 #'
 #' @param data A morpho object
 #' @return A data.frame listing convergent traits, their state, and number of transitions
+#'
+#' @examples
+#' phy <- ape::rtree(10)
+#' morpho_data <- sim.morpho(tree = phy, k = 2, trait.num = 20)
+#' convergent_evol(morpho_data)
+#'
 #' @export
 convergent_evol <- function(data = NULL) {
 
@@ -168,10 +182,7 @@ convergent_evol <- function(data = NULL) {
 #' @param tree A phylogenetic tree of class \code{phylo}
 #' @param tip Tip label (character)
 #' @return A matrix with columns \code{parent} and \code{child} representing the path
-#' @export
-#' @examples
-#' phy <- ape::rtree(10)
-#' route_n <- find_path_to_tip(phy, "t2")
+#' @importFrom ape Ntip
 find_path_to_tip <- function(tree, tip) {
   # Ensure the tip is valid
   if (!tip %in% tree$tip.label) {
@@ -218,6 +229,8 @@ find_path_to_tip <- function(tree, tip) {
 #' @param y A `morpho` object.
 #'
 #' @return A combined `morpho` object.
+#'
+#' @importFrom phangorn RF.dist
 #' @export
 #'
 #' @examples
@@ -304,8 +317,11 @@ combine.morpho <- function(x, y) {
 
 #' Add reconstructed tree and matrix to morpho object
 #'
-#' @description Function to add the reconstructed tree and corresponding reconstructed
-#' matrix to an existing morpho object
+#' @description This function should be called if you want to access the
+#' reconstructed tree and character matrix directly from the morpho object.
+#' It adds the reconstructed tree in Newick format ($trees$Recon), containing
+#' only the sampled lineages, and a character matrix ($sequences$recon)
+#' containing only the taxa present in that reconstructed tree.
 #'
 #' @param data `morpho object` containing a fossil object
 #'
@@ -352,4 +368,150 @@ get.reconstructed <- function(data) {
 
   return(data)
 }
+
+
+#' Identify convergent traits
+#'
+#' @description
+#' Identifies convergent evolution in a morpho object. When called without a
+#' trait, returns a summary of which traits are convergent. When called with a
+#' specific trait, returns tip groupings by state and evolutionary origin.
+#'
+#' @param data A morpho object
+#' @param trait The trait number to examine. If \code{NULL} (default), returns a summary.
+#'
+#' @return A data frame. Without \code{trait}: trait index and number of convergent states.
+#'   With \code{trait}: state, origin, tips, and whether the state is convergent.
+#' @export
+#'
+#' @examples
+#' phy <- ape::rtree(10)
+#' morpho_data <- sim.morpho(tree = phy, k = 2, trait.num = 20)
+#' get.convergent(morpho_data)
+#' get.convergent(morpho_data, trait = 3)
+#'
+
+get.convergent <- function(data, trait = NULL) {
+  if (!is.morpho(data)) stop("Error: data must be a morpho object")
+
+  # Summary mode: return which traits are convergent
+  if (is.null(trait)) {
+    conv <- convergent_evol(data)
+    if (nrow(conv) == 0) return(data.frame(trait = integer(0),
+                                           num.convergent.states = integer(0)))
+    summary_df <- aggregate(state ~ trait, data = conv, FUN = length)
+    colnames(summary_df) <- c("trait", "num.convergent.states")
+    return(summary_df)
+  }
+
+  # Detail mode: group tips by state and origin for a specific trait
+  tree <- data$trees$EvolTree
+  tip_states <- sapply(data$sequences$tips, function(x) x[trait])
+  trans <- data$transition_history[[trait]]
+  root_state <- data$root.states[trait]
+
+  origin_labels <- character(length(tip_states))
+  names(origin_labels) <- names(tip_states)
+
+  for (tip in names(tip_states)) {
+    path <- find_path_to_tip(tree, tip)
+    origin <- "root"
+
+    for (l in seq(nrow(path), 1)) {
+      bran <- which(tree$edge[, 1] == path[l, "parent"] &
+                      tree$edge[, 2] == path[l, "child"])
+      if (nrow(trans) > 0 && bran %in% trans$edge) {
+        matches <- trans[trans$edge == bran, ]
+        last_change <- matches[which.max(matches$hmin), ]
+        origin <- paste0("edge_", last_change$edge, "_t_", round(last_change$hmin, 4))
+        break
+      }
+    }
+    origin_labels[tip] <- origin
+  }
+
+  result <- data.frame(
+    tip = names(tip_states),
+    state = tip_states,
+    origin = origin_labels,
+    row.names = NULL
+  )
+
+  summary <- aggregate(tip ~ state + origin, data = result,
+                       FUN = function(x) paste(x, collapse = ", "))
+
+  # flag convergent states
+  origins_per_state <- table(summary$state)
+  convergent_states <- names(origins_per_state[origins_per_state > 1])
+
+  summary$convergent <- summary$state %in% convergent_states
+  summary <- summary[order(summary$state, summary$origin), ]
+
+  return(summary)
+}
+
+
+#' Get Tranisition History
+#'
+#' @description
+#' Returns the full transition history for a given trait,
+#' including the root state.
+#'
+#' @param data A morpho object
+#' @param trait The trait number .
+#'
+#' @return A data frame with columns edge (branch number), state, and
+#' hmin (where along the branch the transition occurred)
+#'
+#' @export
+#' @examples
+#' phy <- ape::rtree(10)
+#' morpho_data <- sim.morpho(tree = phy, k = 2, trait.num = 20)
+#' get.transitions(morpho_data, trait = 2)
+#'
+get.transitions <- function(data, trait) {
+  if (!is.morpho(data)) stop("Error: data must be a morpho object")
+  if (trait > length(data$transition_history)) {
+    stop(paste0("Error: trait ", trait, " is out of range. Object has ",
+                length(data$transition_history), " traits."))
+  }
+
+  root_row <- data.frame(edge = 0, state = as.numeric(data$root.states[trait]), hmin = 0)
+  tr <- data$transition_history[[trait]]
+
+  rbind(root_row, tr)
+}
+
+
+#' Get Specific Morphological Matrix
+#'
+#' @description
+#' Return data frame of morphological matrix
+#'
+#' @param data A morpho object
+#' @param seq The sequence data you want to extract
+#'
+#' @return A data frame with columns edge (branch number), state, and
+#' hmin (where along the branch the transition occurred)
+#'
+#' @export
+#' @examples
+#' phy <- ape::rtree(10)
+#' morpho_data <- sim.morpho(tree = phy, k = 2, trait.num = 20)
+#' get.matrix(morpho_data, seq = "tips")
+
+get.matrix <- function(data, seq) {
+  if (!is.morpho(data)) stop("Error: data must be a morpho object")
+  if (!seq  %in% names(data$sequences)) {
+    stop(paste0(seq, " not found in morpho object"))
+  }
+
+  s <- t(as.data.frame(data$sequences[[seq]]))
+  return(s)
+
+}
+
+
+
+
 
