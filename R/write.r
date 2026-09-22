@@ -225,9 +225,15 @@ write.recon.tsv <- function (data, file, uncertainty = 0){
 
   for ( i in 1:length(reconTreeTips)){
     ord <-  which(data$trees$TimeTree$tip.label ==reconTreeTips[i])
-    node_pos <- ape::node.depth.edgelength(data$trees$TimeTree)[ord]
-    tree_height <- max(ape::node.depth.edgelength(data$trees$TimeTree))
-    tip_ages <-   round(abs(node_pos - tree_height),3)
+    
+    if (length(ord) == 0) {
+      ed <- which(data$trees$EvolTree$edge[, 2] == as.numeric(sub("t", "", reconTreeTips[i])))
+      tip_ages <- round(min(data$fossil$hmin[data$fossil$ape.branch == ed]), 3)
+    } else {
+      node_pos <- ape::node.depth.edgelength(data$trees$TimeTree)[ord]
+      tree_height <- max(ape::node.depth.edgelength(data$trees$TimeTree))
+      tip_ages <- round(abs(node_pos - tree_height), 3)
+    }
 
     if(tip_ages == 0){
       nm <- paste0(reconTreeTips[i], "_1")
@@ -282,10 +288,6 @@ write.recon.tsv <- function (data, file, uncertainty = 0){
 #' @return
 #' A character matrix mapping sampled ancestor labels between the naming
 #' conventions used by \code{Morphsim} and \code{Fossilsim}
-#'
-#' @examples
-#' data(morpho_data)
-#' morphsim_fossilsim <- function(data = morpho_data)
 #'
 morphsim_fossilsim <- function (data = NULL){
 

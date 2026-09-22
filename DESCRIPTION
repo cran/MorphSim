@@ -1,7 +1,7 @@
 Package: MorphSim
 Type: Package
 Title: Simulate Discrete Character Data along Phylogenetic Trees
-Version: 1.2.0
+Version: 1.2.1
 Authors@R: c(person(given = "Laura", family = "Mulvey", role = c("aut", "cre", "cph"), email = "lauramulvey479@gmail.com"),
     person(given = "Tim", family = "Brandler",role=c("aut","cph")),
     person(given = "Alessio", family = "Capobianco",role=c("aut","cph")),
@@ -10,7 +10,8 @@ Authors@R: c(person(given = "Laura", family = "Mulvey", role = c("aut", "cre", "
 Description: Tools to simulate morphological traits along phylogenetic trees
  with branch lengths representing evolutionary distance or time.
  Includes functions for visualizing evolutionary processes along trees
- and within morphological character matrices.
+ and within morphological character matrices. Methods are described in
+ Mulvey et al. (2026) <doi:10.1111/2041-210X.70326>.
 License: GPL-3
 Encoding: UTF-8
 RoxygenNote: 7.3.3
@@ -21,7 +22,7 @@ Config/testthat/edition: 3
 Depends: R (>= 3.5)
 LazyData: true
 NeedsCompilation: no
-Packaged: 2026-05-06 13:45:15 UTC; lauramulvey
+Packaged: 2026-09-21 14:01:48 UTC; lauramulvey
 Author: Laura Mulvey [aut, cre, cph],
   Tim Brandler [aut, cph],
   Alessio Capobianco [aut, cph],
@@ -29,4 +30,4 @@ Author: Laura Mulvey [aut, cre, cph],
   Joelle Barido-Sottani [aut, cph]
 Maintainer: Laura Mulvey <lauramulvey479@gmail.com>
 Repository: CRAN
-Date/Publication: 2026-05-06 14:30:02 UTC
+Date/Publication: 2026-09-22 07:50:13 UTC
